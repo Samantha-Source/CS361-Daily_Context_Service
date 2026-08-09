@@ -1,0 +1,138 @@
+# Name: Craig Harker, Kelli Muldoon, & Samantha Brown
+# Course: CS361 - Software Engineering 1
+# Assignment: Assignment 9
+# Due Date: 8/10/26
+# Description: Tests for the Daily Context microservice -- core /context
+#   endpoint (location parsing, concurrent fetch, partial-result
+#   behavior) plus the weather, air quality, and daylight source
+#   modules. Each source's tests mock its external API call.
+ 
+import pytest
+ 
+from app import app
+from sources import weather, air_quality, daylight
+ 
+ 
+@pytest.fixture
+def client():
+    app.config["TESTING"] = True
+    with app.test_client() as client:
+        yield client
+ 
+ 
+# ---------------------------------------------------------------------
+# Core /context endpoint and location parsing
+# Owner: Craig
+# ---------------------------------------------------------------------
+ 
+def test_health(client):
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    assert resp.get_json() == {"status": "ok"}
+ 
+ 
+def test_context_missing_location(client):
+    resp = client.get("/context")
+    assert resp.status_code == 400
+    assert "error" in resp.get_json()
+ 
+ 
+def test_context_lat_long_passthrough(client, monkeypatch):
+    """A 'lat,long' location should skip geocoding entirely."""
+    monkeypatch.setattr(
+        "app.SOURCES",
+        {
+            "weather": lambda lat, lon: {"temp_f": 70},
+            "air_quality": lambda lat, lon: {"aqi": 10},
+            "daylight": lambda lat, lon: {"sunrise": "x", "sunset": "y"},
+        },
+    )
+    resp = client.get("/context?location=44.56,-123.26")
+    body = resp.get_json()
+    assert resp.status_code == 200
+    assert body["partial"] is False
+    assert body["weather"] == {"temp_f": 70}
+ 
+ 
+def test_context_partial_on_source_failure(client, monkeypatch):
+    """If one source raises, the response should still include the
+    other two and set partial=True."""
+ 
+    def failing_source(lat, lon):
+        raise RuntimeError("simulated failure")
+ 
+    monkeypatch.setattr(
+        "app.SOURCES",
+        {
+            "weather": lambda lat, lon: {"temp_f": 70},
+            "air_quality": failing_source,
+            "daylight": lambda lat, lon: {"sunrise": "x", "sunset": "y"},
+        },
+    )
+    resp = client.get("/context?location=44.56,-123.26")
+    body = resp.get_json()
+    assert resp.status_code == 200
+    assert body["partial"] is True
+    assert "error" in body["air_quality"]
+    assert body["weather"] == {"temp_f": 70}
+ 
+ 
+# TODO: add a geocoding test once _geocode() in location.py is implemented
+# (mock the geocoding provider, test invalid-location returns 400).
+ 
+ 
+# ---------------------------------------------------------------------
+# Weather source (sources/weather.py)
+# Owner: Samantha
+# Mock the external API call -- tests should not depend on network
+# access or a real API key.
+# ---------------------------------------------------------------------
+ 
+def test_get_weather_returns_expected_shape(monkeypatch):
+    # TODO: mock the HTTP call inside get_weather() and assert the
+    # returned dict has the documented keys (temp_f, condition, ...).
+    pass
+ 
+ 
+def test_get_weather_raises_on_api_failure(monkeypatch):
+    # TODO: mock the HTTP call to raise/return an error status and
+    # assert get_weather() raises rather than silently failing.
+    pass
+ 
+ 
+# ---------------------------------------------------------------------
+# Air quality source (sources/air_quality.py)
+# Owner: Kelli
+# Mock the external API call -- tests should not depend on network
+# access or a real API key.
+# ---------------------------------------------------------------------
+ 
+def test_get_air_quality_returns_expected_shape(monkeypatch):
+    # TODO: mock the HTTP call inside get_air_quality() and assert the
+    # returned dict has the documented keys (aqi, category, ...).
+    pass
+ 
+ 
+def test_get_air_quality_raises_on_api_failure(monkeypatch):
+    # TODO: mock the HTTP call to raise/return an error status and
+    # assert get_air_quality() raises rather than silently failing.
+    pass
+ 
+ 
+# ---------------------------------------------------------------------
+# Daylight source (sources/daylight.py)
+# Owner: whoever owns daylight.py
+# Mock the external API call -- tests should not depend on network
+# access or a real API key.
+# ---------------------------------------------------------------------
+ 
+def test_get_daylight_returns_expected_shape(monkeypatch):
+    # TODO: mock the HTTP call inside get_daylight() and assert the
+    # returned dict has the documented keys (sunrise, sunset, ...).
+    pass
+ 
+ 
+def test_get_daylight_raises_on_api_failure(monkeypatch):
+    # TODO: mock the HTTP call to raise/return an error status and
+    # assert get_daylight() raises rather than silently failing.
+    pass
