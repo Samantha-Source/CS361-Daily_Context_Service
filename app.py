@@ -22,7 +22,9 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request
  
 from location import resolve_location, LocationError
-from sources import weather, air_quality, daylight
+import weather
+import air_quality
+import daylight
  
 load_dotenv()
  

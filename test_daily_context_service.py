@@ -10,7 +10,9 @@
 import pytest
  
 from app import app
-from sources import weather, air_quality, daylight
+import weather
+import air_quality
+import daylight
  
  
 @pytest.fixture
