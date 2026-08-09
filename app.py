@@ -2,64 +2,90 @@
 # Course: CS361 - Software Engineering 1
 # Assignment: Assignment 9
 # Due Date: 8/10/26
-# Description: Resolves a user-supplied location string (city name, zip
-#   code, or "lat,long") into coordinates via direct parsing or a
-#   geocoding provider, for use by the /context endpoint.
+# Description: Main Flask app for the Daily Context microservice. Defines
+#   the /health and /context endpoints, resolves the requested location,
+#   fetches weather/air quality/daylight concurrently, and merges the
+#   results into a single response with partial-failure support.
  
 """
-Resolves a user-supplied location string (city name, zip code, or
-"lat,long") into coordinates the source modules can use.
+Daily Context Service
+Merges weather, air quality, and daylight data for a given location.
+ 
+Endpoints:
+    GET /health   - service liveness check
+    GET /context  - merged weather/air-quality/daylight snapshot
 """
  
+from concurrent.futures import ThreadPoolExecutor, as_completed
  
-class LocationError(Exception):
-    """Raised when a location string can't be resolved to coordinates."""
+from dotenv import load_dotenv
+from flask import Flask, jsonify, request
  
+from location import resolve_location, LocationError
+from sources import weather, air_quality, daylight
  
-def resolve_location(location_input):
-    """
-    Args:
-        location_input: raw string from the ?location= query param.
-            Examples: "Corvallis,OR", "97330", "44.5646,-123.2620"
+load_dotenv()
  
-    Returns:
-        (lat, lon) tuple of floats.
+app = Flask(__name__)
  
-    Raises:
-        LocationError: if location_input is empty, malformed, or can't
-            be resolved by the geocoding provider.
-    """
-    if not location_input:
-        raise LocationError("location parameter is required")
- 
-    coords = _try_parse_lat_long(location_input)
-    if coords:
-        return coords
- 
-    return _geocode(location_input)
+# Maps a name in the merged response to the function that produces it.
+# Each function must accept (lat, lon) and return a dict, or raise an
+# exception on failure -- fetch_source() below catches it and turns it
+# into a per-source error instead of failing the whole request.
+SOURCES = {
+    "weather": weather.get_weather,
+    "air_quality": air_quality.get_air_quality,
+    "daylight": daylight.get_daylight,
+}
  
  
-def _try_parse_lat_long(location_input):
-    """Return (lat, lon) if location_input is already a 'lat,long' pair,
-    otherwise return None so the caller falls through to geocoding."""
-    parts = location_input.split(",")
-    if len(parts) != 2:
-        return None
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"}), 200
+ 
+ 
+def fetch_source(name, fn, lat, lon):
+    """Run one source fetch and normalize failures into an error dict
+    instead of letting an exception take down the whole request."""
     try:
-        lat, lon = float(parts[0].strip()), float(parts[1].strip())
-    except ValueError:
-        return None
-    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
-        raise LocationError(f"lat/long out of range: {location_input}")
-    return lat, lon
+        return name, fn(lat, lon), None
+    except Exception as exc:  # noqa: BLE001 - intentionally broad, see docstring
+        return name, None, str(exc)
  
  
-def _geocode(location_input):
-    """
-    Resolve a city name or zip code to coordinates via a geocoding API
-    (OpenWeatherMap Geocoding, Nominatim).
+@app.route("/context", methods=["GET"])
+def context():
+    location_input = request.args.get("location", "")
  
-    TODO: call the chosen geocoding provider here. Raise LocationError
-    with a clear message if the provider returns no results.
-    """
-    raise NotImplementedError("geocoding not yet implemented")
+    try:
+        lat, lon = resolve_location(location_input)
+    except LocationError as exc:
+        return jsonify({"error": str(exc)}), 400
+ 
+    results = {}
+    had_failure = False
+ 
+    # Fetch all three sources concurrently to stay near the ~1s target.
+    with ThreadPoolExecutor(max_workers=len(SOURCES)) as executor:
+        futures = [
+            executor.submit(fetch_source, name, fn, lat, lon)
+            for name, fn in SOURCES.items()
+        ]
+        for future in as_completed(futures):
+            name, data, error = future.result()
+            if error:
+                had_failure = True
+                results[name] = {"error": error}
+            else:
+                results[name] = data
+ 
+    response = {
+        "location": {"input": location_input, "lat": lat, "lon": lon},
+        **results,
+        "partial": had_failure,
+    }
+    return jsonify(response), 200
+ 
+ 
+if __name__ == "__main__":
+    app.run(port=5106, debug=True)
