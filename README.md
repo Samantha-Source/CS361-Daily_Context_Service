@@ -4,6 +4,7 @@ Daily Context Microservice providing Weather, air-quality, and daylight data int
 ## Communication contract
 The service uses a REST API with JSON at `http://127.0.0.1:5106` by default.
 
+
 | Method and path | Purpose |
 | --- | --- |
 | `GET /health` | Check whether the service is running |
