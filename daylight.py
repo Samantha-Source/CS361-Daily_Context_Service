@@ -51,7 +51,7 @@ def get_daylight(lat, lon):
         DAYLIGHT_URL,
         params={
             "lat": lat,
-            "lon": lon,
+            "lng": lon,
             "formatted": 0,     # ISO 8601 timestamps instead of "7:12:00 AM"
         },
         timeout=DAYLIGHT_TIMEOUT_SECONDS,
