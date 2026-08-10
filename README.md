@@ -16,6 +16,26 @@ the underlying sources. An unrecognized or invalid location returns a JSON `erro
 If one or more of weather, air quality, or daylight fails to return data, the service still responds with whatever succeeded. The
 response includes a `partial` flag so callers can tell a full snapshot from a degraded one.
 
+
+### Environment setup
+
+Copy the example environment file before running the service:
+
+```powershell
+copy .env.example.env
+```
+(macOS/Linux: `cp .env.example .env`)
+
+`GEOCODING_API_KEY` and `WEATHER_API_KEY` both come from the same [OpenWeatherMap] (https://openweathermap.org/api) account -- one free API key works for both fields
+
+**New OpenWeatherMap keys can take up to ~2 hours to activate**
+If you see `geocoding provider error: 401`, or weather comes back unavailable right after creating a key, that's expected, wait a bit and retry.
+
+`AIR_QUALITY_API_KEY` is not needed - air quality uses Open-Meteo, which does not require a key.
+
+Without `GEOCODING_API_KEY`, city/zip location lookups fail immediately with a clear error; a 'lat,long' location still works fine since it skips geocoding entirely.  
+
+
 ### How to request data
  
 ```powershell
