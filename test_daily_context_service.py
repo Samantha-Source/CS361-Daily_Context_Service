@@ -10,6 +10,7 @@
 import pytest
  
 from app import app
+from location import resolve_location, LocationError
 import weather
 import air_quality
 import daylight
