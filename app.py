@@ -15,7 +15,8 @@ Endpoints:
     GET /health   - service liveness check
     GET /context  - merged weather/air-quality/daylight snapshot
 """
- 
+
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
  
 from dotenv import load_dotenv
@@ -29,6 +30,26 @@ import daylight
 load_dotenv()
  
 app = Flask(__name__)
+
+# Let browser-based main programs call this service
+@app.after_request
+def allow_main_program(response):
+    configured = os.environ.get(
+        "MAIN_PROGRAM_ORIGINS",
+        os.environ.get(
+            "MAIN_PROGRAM_ORIGIN",
+            "http://localhost:5173, http://127.0.0.1:5173",
+        ),
+    )
+    allowed = {
+        value.strip().rstrip("/") for value in configured.split(",") if value.strip()
+    }
+    origin = (request.headers.get("Origin") or "").rstrip("/")
+    if origin in allowed:
+        response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Methods"] = "GET,OPTIONS"
+    return response
  
 # Maps a name in the merged response to the function that produces it.
 # Each function must accept (lat, lon) and return a dict, or raise an

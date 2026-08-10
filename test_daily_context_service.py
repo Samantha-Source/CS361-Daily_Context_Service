@@ -153,15 +153,42 @@ def test_geocode_routes_zip_vs_city(monkeypatch):
 # ---------------------------------------------------------------------
  
 def test_get_weather_returns_expected_shape(monkeypatch):
-    # TODO: mock the HTTP call inside get_weather() and assert the
-    # returned dict has the documented keys (temp_f, condition, ...).
-    pass
+    monkeypatch.setenv("WEATHER_API_KEY", "test-key")
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "main": {"temp": 71.8},
+                "weather": [{"description": "partly cloudy"}],
+            }
+
+    monkeypatch.setattr("requests.get", lambda *a, **k: FakeResponse())
+
+    result = weather.get_weather(44.5646, -123.2620)
+    assert result == {"temp_f": 72, "condition": "Partly cloudy"}
+
+
+def test_get_weather_raises_without_api_key(monkeypatch):
+    monkeypatch.delenv("WEATHER_API_KEY", raising=False)
+
+    with pytest.raises(Exception):
+        weather.get_weather(44.5646, -123.2620)
  
  
 def test_get_weather_raises_on_api_failure(monkeypatch):
-    # TODO: mock the HTTP call to raise/return an error status and
-    # assert get_weather() raises rather than silently failing.
-    pass
+    monkeypatch.setenv("WEATHER_API_KEY", "test-key")
+
+    class FailingResponse:
+        def raise_for_status(self):
+            raise Exception("simulated HTTP failure")
+
+    monkeypatch.setattr("requests.get", lambda *a, **k: FailingResponse())
+
+    with pytest.raises(Exception):
+        weather.get_weather(44.5646, -123.2620)
  
  
 # ---------------------------------------------------------------------
@@ -185,18 +212,54 @@ def test_get_air_quality_raises_on_api_failure(monkeypatch):
  
 # ---------------------------------------------------------------------
 # Daylight source (sources/daylight.py)
-# Owner: whoever owns daylight.py
+# Owner: Samantha Brown
 # Mock the external API call -- tests should not depend on network
 # access or a real API key.
 # ---------------------------------------------------------------------
  
 def test_get_daylight_returns_expected_shape(monkeypatch):
-    # TODO: mock the HTTP call inside get_daylight() and assert the
-    # returned dict has the documented keys (sunrise, sunset, ...).
-    pass
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "results": {
+                    "sunrise": "2026-08-09T13:12:00+00:00",
+                    "sunset": "2026-08-10T03:41:00+00:00",
+                },
+                "status": "OK",
+            }
+
+    monkeypatch.setattr("requests.get", lambda *a, **k: FakeResponse())
+
+    result = daylight.get_daylight(44.5646, -123.2620)
+
+    assert result["sunrise"] == "2026-08-09T13:12:00Z"
+    assert result["sunset"] == "2026-08-10T03:41:00Z"
+    assert "is_daytime" in result
  
+
+def test_get_daylight_raises_when_provider_reports_error_status(monkeypatch):
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"status" : "INVALID_REQUEST"}
+
+    monkeypatch.setattr("requests.get", lambda *a, **k: FakeResponse())
+
+    with pytest.raises(Exception):
+        daylight.get_daylight(44.5646, -123.2620)
+
  
 def test_get_daylight_raises_on_api_failure(monkeypatch):
-    # TODO: mock the HTTP call to raise/return an error status and
-    # assert get_daylight() raises rather than silently failing.
-    pass
+    class FailingResponse:
+        def raise_for_status(self):
+            raise Exception("simulated HTTP failure")
+
+    monkeypatch.setattr("requests.get", lambda *a, **k: FailingResponse())
+
+    with pytest.raises(Exception):
+        daylight.get_daylight(44.5646, -123.2620)
