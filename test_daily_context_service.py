@@ -79,8 +79,69 @@ def test_context_partial_on_source_failure(client, monkeypatch):
     assert body["weather"] == {"temp_f": 70}
  
  
-# TODO: add a geocoding test once _geocode() in location.py is implemented
-# (mock the geocoding provider, test invalid-location returns 400).
+# ---------------------------------------------------------------------
+# Geocoding (location.py's _geocode, _geocode_zip, _geocode_city)
+# Owner: Craig
+# ---------------------------------------------------------------------
+ 
+from location import _geocode_zip, _geocode_city
+ 
+ 
+def test_geocode_missing_api_key(monkeypatch):
+    monkeypatch.delenv("GEOCODING_API_KEY", raising=False)
+    with pytest.raises(LocationError):
+        resolve_location("Corvallis,OR")
+ 
+ 
+def test_geocode_city_no_results(monkeypatch):
+    """Provider returning an empty list should raise LocationError."""
+ 
+    class FakeResponse:
+        ok = True
+        status_code = 200
+ 
+        def json(self):
+            return []
+ 
+    monkeypatch.setattr("requests.get", lambda *a, **k: FakeResponse())
+    with pytest.raises(LocationError):
+        _geocode_city("Nowhereville", "test-key")
+ 
+ 
+def test_geocode_zip_not_found(monkeypatch):
+    """A 404 from the zip endpoint should raise LocationError."""
+ 
+    class FakeResponse:
+        ok = False
+        status_code = 404
+ 
+        def json(self):
+            return {}
+ 
+    monkeypatch.setattr("requests.get", lambda *a, **k: FakeResponse())
+    with pytest.raises(LocationError):
+        _geocode_zip("00000", "test-key")
+ 
+ 
+def test_geocode_routes_zip_vs_city(monkeypatch):
+    """Digit input should hit the zip endpoint; text input should hit
+    the city (direct) endpoint."""
+    monkeypatch.setenv("GEOCODING_API_KEY", "test-key")
+ 
+    calls = []
+    monkeypatch.setattr(
+        "location._geocode_zip",
+        lambda loc, key: calls.append(("zip", loc)) or (44.5, -123.2),
+    )
+    monkeypatch.setattr(
+        "location._geocode_city",
+        lambda loc, key: calls.append(("city", loc)) or (44.5, -123.2),
+    )
+ 
+    resolve_location("97330")
+    resolve_location("Corvallis,OR")
+ 
+    assert calls == [("zip", "97330"), ("city", "Corvallis,OR")]
  
  
 # ---------------------------------------------------------------------

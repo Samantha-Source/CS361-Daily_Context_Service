@@ -107,3 +107,7 @@ Given an invalid or unrecognized location the service returns a clear error.
 Usability: location should accept common formats (city name, zip, lat/long)
 
 ## Remaining shared work
+Weather source (sources/weather.py) is not yet implemented — owner: Samantha.
+Daylight source (sources/daylight.py) is not yet implemented — owner: Samantha.
+Air quality (sources/air_quality.py) is not yet implemented — owner: Kelli.
+Core geocoding/context endpoint completed and tested - owner: Craig.
