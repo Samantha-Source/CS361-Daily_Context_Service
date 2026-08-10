@@ -34,7 +34,7 @@ app = Flask(__name__)
 # Let browser-based main programs call this service
 @app.after_request
 def allow_main_program(response):
-    configured = os.eniron.get(
+    configured = os.environ.get(
         "MAIN_PROGRAM_ORIGINS",
         os.environ.get(
             "MAIN_PROGRAM_ORIGIN",
